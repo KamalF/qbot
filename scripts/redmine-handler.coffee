@@ -17,10 +17,12 @@
 #
 # Configuration (Redmine 7.0+):
 #   Admin -> Settings -> API -> enable webhooks.
-#   Each subscriber (or a shared service account) adds a webhook under
+#   Register a SINGLE webhook (from the shared service account) under
 #   My account -> Webhooks: URL http://<hubot-host>:<hubot-port>/hubot/redmine-notify,
 #   events `issue.created` + `issue.updated`, and the projects to watch. The webhook
-#   owner needs the `use_webhooks` permission on those projects.
+#   owner needs the `use_webhooks` permission on those projects. Do NOT let each
+#   subscriber register their own webhook: qbot does not deduplicate deliveries,
+#   so K webhooks mean K duplicate notifications per event.
 #   Set HUBOT_REDMINE_URL (e.g. https://support.intersec.com) and
 #   HUBOT_REDMINE_API_KEY so qbot can resolve the fields above.
 #
@@ -32,9 +34,9 @@
 #   `view_issue_watchers` on the project.
 #
 #   The service account must be a MEMBER of every project it receives webhooks
-#   for. It can only resolve users who share a visible project with it, so
-#   otherwise /users/:id.json returns 404, the author never resolves, and the
-#   notification is dropped silently (see `return unless author?` below).
+#   for. It can only resolve users who share a visible project with it;
+#   otherwise /users/:id.json returns 404 and that user is skipped (logged,
+#   not DMed) while the rest of the notification still goes out.
 #
 # URLS:
 #   POST /hubot/redmine-notify
@@ -75,10 +77,11 @@ module.exports = (robot) ->
           robot.logger.error "redmine-notify api #{path}: #{err or res.statusCode}"
           return cb(null)
         try
-          cb(JSON.parse(bodyText))
+          parsed = JSON.parse(bodyText)
         catch e
           robot.logger.error "redmine-notify api #{path}: bad JSON (#{e})"
-          cb(null)
+          return cb(null)
+        cb(parsed)
 
   # Resolve a user id -> { id, login, firstname, lastname, name } (or null).
   resolveUser = (id, cb) ->
@@ -98,37 +101,50 @@ module.exports = (robot) ->
 
     # 1) project identifier (channel routing key), 2) watchers, 3) user logins
     api "/projects/#{issue.project.id}.json", (projData) ->
-      projectIdentifier =
-        projData?.project?.identifier or String(issue.project.id)
+      projectIdentifier = projData?.project?.identifier
+      unless projectIdentifier?
+        robot.logger.error "redmine-notify ##{issue.id}: cannot resolve project" +
+          " #{issue.project.id} (#{issue.project.name}); no channel announcement"
 
       api "/issues/#{issue.id}.json?include=watchers", (issData) ->
+        unless issData?
+          robot.logger.error "redmine-notify ##{issue.id}: cannot fetch watchers; watcher DMs skipped"
         watcherStubs = issData?.issue?.watchers or []
 
-        ids = {}
+        # null-prototype objects: user-controlled ids must not hit
+        # Object.prototype members ("constructor", ...)
+        ids = Object.create(null)
         ids[issue.author.id] = true if issue.author?.id?
         ids[issue.assigned_to.id] = true if issue.assigned_to?.id?
         ids[updaterId] = true if updaterId?
         ids[w.id] = true for w in watcherStubs when w.id?
 
-        resolved = {}
+        resolved = Object.create(null)
         pending = Object.keys(ids).length
 
         finish = ->
-          author = resolved[issue.author?.id]
-          assignee = resolved[issue.assigned_to?.id]
-          updater = resolved[updaterId] or author
-          return unless author?   # cannot notify without at least the author login
+          unresolvedIds = (id for id of ids when not resolved[id]?)
+          if unresolvedIds.length > 0
+            robot.logger.warning "redmine-notify ##{issue.id}: could not resolve" +
+              " user ids #{unresolvedIds.join(', ')} (locked/invisible user or a" +
+              " group); they will not be DMed"
+
+          journalDetails = journal?.details or []
+          statusChanged = (d for d in journalDetails when d.property == 'attr' and d.name == 'status_id').length > 0
 
           details = {
             type: 'redmine-notif'
             action: action
-            assignee: assignee
-            author: author
-            updater: updater
+            assignee: resolved[issue.assigned_to?.id]
+            assignee_name: issue.assigned_to?.name
+            author: resolved[issue.author?.id]
+            updater: resolved[updaterId]
+            updater_name: journal?.user?.name or issue.author?.name or 'Someone'
             issueId: issue.id
             subject: issue.subject
             description: issue.description
             status: issue.status.name
+            status_changed: statusChanged
             tracker: issue.tracker.name
             priority: issue.priority.name
             project: issue.project.name

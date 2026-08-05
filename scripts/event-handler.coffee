@@ -40,6 +40,7 @@ module.exports = (robot) ->
       content = replaced.join '\n'
     else
       content = details.notes
+    content or= ''
 
     # Build a pretty message for the related ticket
     msg = {
@@ -72,36 +73,38 @@ module.exports = (robot) ->
       as_user: true
     }
 
-    if details.assignee
+    # assignee_name comes straight from the webhook payload, so the field
+    # survives when the assignee is a group or an unresolvable user
+    if details.assignee_name
       msg.attachments[0].fields.unshift({
         title: "Assignee"
-        value: "#{details.assignee.firstname} #{details.assignee.lastname}"
+        value: details.assignee_name
         short: true
       })
 
-    text = "#{details.updater.firstname} #{details.updater.lastname} has " +
-           "updated ##{details.issueId}"
+    text = "#{details.updater_name} has updated ##{details.issueId}"
 
     notified = {}
     # notify user if not updater and not already notified
     notify_user = (login) ->
-      if login != details.updater.login and login not of notified
+      return unless login?
+      if login != details.updater?.login and login not of notified
         robot.emit 'user-send', login, 'redmine', text, msg
         notified[login] = true
 
     # Send notification to assignee
-    if details.assignee
-      notify_user details.assignee.login
+    notify_user details.assignee?.login
 
     # Send notification to author
-    notify_user details.author.login
+    notify_user details.author?.login
 
     # Send notification to watchers
     for idx,w of details.watchers
       notify_user w.login
 
-    if details.action == 'opened' or content.indexOf('to `New') >= 0
-      robot.emit 'channel-send', details.project_id, text, msg
+    if details.action == 'opened' or (details.status_changed and details.status == 'New')
+      if details.project_id?
+        robot.emit 'channel-send', details.project_id, text, msg
 
   robot.on 'gerrit-notif', (details) ->
     # Build a pretty message for the related gerrit notif
