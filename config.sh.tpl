@@ -22,3 +22,14 @@ export HUBOT_LOG_LEVEL=
 # Otherwise, notifications are redirected on the channel #qbot-dev
 
 export QBOT_PROD_READY=
+
+# Redmine 7.0 native webhooks: base URL and an API key. Required by
+# scripts/redmine-handler.coffee to resolve user logins, watchers and the
+# project identifier, which the native webhook payload does not include.
+#
+# This does NOT need to be an admin key. Use a dedicated non-admin service
+# account with `view_issues` and `view_issue_watchers` on the watched projects,
+# and make it a member of each of them so user lookups resolve.
+
+export HUBOT_REDMINE_URL=
+export HUBOT_REDMINE_API_KEY=
