@@ -4,10 +4,11 @@
 # rooms the bot posts to must be unencrypted.
 #
 # Configuration:
-#   MATRIX_HOMESERVER_URL - base URL of the homeserver (https://matrix.example.com)
+#   MATRIX_SERVER_NAME    - server name of the homeserver, used to build
+#                           DM user ids: @<email local part>:<server_name>
 #   MATRIX_ACCESS_TOKEN   - access token of the bot user
-#   MATRIX_SERVER_NAME    - server name used to build DM user ids:
-#                           @<email local part>:<server_name>
+#   MATRIX_HOMESERVER_URL - optional, base URL of the client API when not
+#                           served at https://<server_name>
 
 'use strict'
 
@@ -64,11 +65,15 @@ txn_counter = 0
 
 class MatrixClient
   constructor: (@robot) ->
-    @url = (process.env.MATRIX_HOMESERVER_URL ? '').replace /\/+$/, ''
-    @token = process.env.MATRIX_ACCESS_TOKEN
     @server_name = process.env.MATRIX_SERVER_NAME
+    @token = process.env.MATRIX_ACCESS_TOKEN
+    url = process.env.MATRIX_HOMESERVER_URL
+    url = "https://#{@server_name}" if not url? or url.length == 0
+    @url = url.replace /\/+$/, ''
 
-  enabled: -> @url.length > 0 and @token? and @token.length > 0
+  enabled: ->
+    @server_name? and @server_name.length > 0 and
+      @token? and @token.length > 0
 
   api: (method, path, body, cb) ->
     req = @robot.http("#{@url}/_matrix/client/v3#{path}")
@@ -96,6 +101,8 @@ class MatrixClient
   # Resolve a room alias or id to a room id, joining the room if
   # needed. Results are cached in the brain.
   join: (room, cb) ->
+    # qualify local aliases: '#qbot-test' -> '#qbot-test:<server_name>'
+    room += ":#{@server_name}" if room.indexOf(':') == -1
     room_id = @robot.brain.get "matrix.room.#{room}"
     return cb null, room_id if room_id?
     @api 'POST', "/join/#{encodeURIComponent(room)}", {}, (err, data) =>
@@ -128,9 +135,6 @@ class MatrixClient
   # reused for all subsequent DMs to this user.
   sendDM: (mail, plain, html) ->
     return if not @enabled()
-    if not @server_name? or @server_name.length == 0
-      @robot.logger.debug 'matrix: MATRIX_SERVER_NAME not set, cannot DM'
-      return
     if not mail? or mail.indexOf('@') <= 0
       @robot.logger.debug "matrix: no email available, cannot DM (#{mail})"
       return

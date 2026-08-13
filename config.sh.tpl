@@ -34,21 +34,23 @@ export QBOT_PROJECT_LINKS=
 # homeserver when both variables below are set.
 # Rooms must NOT be end-to-end encrypted (the bot does not support E2EE).
 
-# Base URL of the homeserver, e.g. https://matrix.example.com
+# Server name of the matrix homeserver, e.g. matrix.intersec.com.
+# The API is reached at https://<server_name>, and user ids for DMs are
+# built from the user's email: @<email local part>:<server_name>
 
-export MATRIX_HOMESERVER_URL=
+export MATRIX_SERVER_NAME=
 
 # Access token of the bot user (from POST /_matrix/client/v3/login)
 
 export MATRIX_ACCESS_TOKEN=
 
-# Server name used to build user ids for DMs from the user's email:
-# @<email local part>:<server_name> (e.g. @firstname.name:matrix.intersec.com).
-# DMs are disabled if unset.
-
-export MATRIX_SERVER_NAME=
-
-# Room (id or alias, e.g. #qbot-dev:example.com) receiving all matrix
-# notifications when QBOT_PROD_READY is not 1
+# Room receiving all matrix notifications when QBOT_PROD_READY is not 1.
+# The server name is appended if missing: '#qbot-dev' means
+# '#qbot-dev:<MATRIX_SERVER_NAME>' (quote the value, it starts with #)
 
 export QBOT_MATRIX_DEV_ROOM=
+
+# Base URL of the matrix client API, only needed when it is not served
+# at https://<MATRIX_SERVER_NAME> (see /.well-known/matrix/client)
+
+export MATRIX_HOMESERVER_URL=
