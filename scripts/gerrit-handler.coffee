@@ -48,10 +48,13 @@ mail_of = (user) ->
     split = user.split(/\(|\)/)
   split[1]
 
-# Get the gerrit username matching a "Name <email>" string.
+# Get the gerrit username and email of a notification user. The
+# username comes from the payload when the hook provides it, from a
+# gerrit REST lookup on the email otherwise.
 # Calls back with (username or '', email).
-get_user_login = (robot, user, finished) ->
+resolve_login = (robot, username, user, finished) ->
   mail = mail_of user
+  return finished username, mail if username
   path = "/accounts/?q=email:#{encodeURIComponent(mail)}&n=1&o=DETAILS"
   gerrit_api robot, path, (accounts) ->
     finished accounts?[0]?.username ? '', mail
@@ -80,10 +83,10 @@ class GerritNotifier extends notifier.NotifHandler
     res.end('')
     data = @dataFetch(req, robot)
 
-    get_user_login robot, data.change_owner, (login, mail) ->
+    resolve_login robot, data.change_owner_username, data.change_owner, (login, mail) ->
       data.nickname = login
       data.owner_mail = mail
-      get_user_login robot, data.author, (login) ->
+      resolve_login robot, data.author_username, data.author, (login) ->
         data.emitter = login
         resolve_reviewers robot, (data.reviewers ? []), (users) ->
           data.reviewer_users = users
