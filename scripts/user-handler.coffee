@@ -10,6 +10,8 @@
 
 'use strict'
 
+matrix = require('./matrix-client.coffee')
+
 # Match a user to the key holding the list of subscriptions to
 # disable
 get_user_nosubs_key = (nickname) -> "#{nickname}.nosubscriptions"
@@ -66,7 +68,8 @@ on_action = (cmd, nickname, type, robot, res) ->
     # XXX: A Redmine project needs a hook for this to work
     if ext_cmd[0] == 'link_project' or ext_cmd[0] == 'unlink_project'
       if ext_cmd.length != 3
-        res.send "2 arguments required redmine_project_id slack_channel"
+        res.send "2 arguments required redmine_project_id channel " +
+                 "(slack channel or matrix room id/alias)"
         return
       slack_chans = robot.brain.get(ext_cmd[1])
       if not slack_chans?
@@ -92,8 +95,14 @@ on_action = (cmd, nickname, type, robot, res) ->
 
 module.exports = (robot) ->
 
-  # Handle notifications
-  robot.on 'user-send', (nickname, type, text, msg) ->
+  matrix_client = new matrix.MatrixClient(robot)
+  matrix_dev_room = process.env.QBOT_MATRIX_DEV_ROOM
+
+  # Handle notifications.
+  # user is an object with at least a login, and a mail when the
+  # notification source provides it (needed for matrix DMs).
+  robot.on 'user-send', (user, type, text, msg) ->
+    nickname = user.login
     [chan, text] = fix_channel "@#{nickname}", text
 
     # Check the user has signed up for this type of notifications
@@ -107,12 +116,30 @@ module.exports = (robot) ->
     # send msg to user
     robot.adapter.client.web.chat.postMessage(chan, text, msg)
 
+    # mirror the notification on matrix
+    if matrix_client.enabled()
+      [plain, html] = matrix.format_notif text, msg
+      if is_prod_ready()
+        matrix_client.sendDM user.mail, plain, html
+      else if matrix_dev_room
+        matrix_client.send matrix_dev_room, plain, html
+
   robot.on 'channel-send', (project, text, msg) ->
-    slack_chans = robot.brain.get(project)
-    if slack_chans?
-      for idx,slack_chan of slack_chans
-        [chan, text] = fix_channel slack_chan, text
-        robot.adapter.client.web.chat.postMessage(chan, text, msg)
+    chans = robot.brain.get(project)
+    if chans?
+      for idx,linked_chan of chans
+        if matrix.is_matrix_room linked_chan
+          continue if not matrix_client.enabled()
+          if is_prod_ready()
+            [plain, html] = matrix.format_notif text, msg
+            matrix_client.send linked_chan, plain, html
+          else if matrix_dev_room
+            [plain, html] = matrix.format_notif(
+              "notification to #{linked_chan}: #{text}", msg)
+            matrix_client.send matrix_dev_room, plain, html
+        else
+          [chan, chan_text] = fix_channel linked_chan, text
+          robot.adapter.client.web.chat.postMessage(chan, chan_text, msg)
 
   # Redmine status
   robot.respond /redmine$/, (res) ->

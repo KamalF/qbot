@@ -84,21 +84,21 @@ module.exports = (robot) ->
 
     notified = {}
     # notify user if not updater and not already notified
-    notify_user = (login) ->
-      if login != details.updater.login and login not of notified
-        robot.emit 'user-send', login, 'redmine', text, msg
-        notified[login] = true
+    notify_user = (user) ->
+      if user.login != details.updater.login and user.login not of notified
+        robot.emit 'user-send', user, 'redmine', text, msg
+        notified[user.login] = true
 
     # Send notification to assignee
     if details.assignee
-      notify_user details.assignee.login
+      notify_user details.assignee
 
     # Send notification to author
-    notify_user details.author.login
+    notify_user details.author
 
     # Send notification to watchers
     for idx,w of details.watchers
-      notify_user w.login
+      notify_user w
 
     if details.action == 'opened' or content.indexOf('to `New') >= 0
       robot.emit 'channel-send', details.project_id, text, msg
@@ -123,7 +123,8 @@ module.exports = (robot) ->
       else
         text = details.author
 
-      robot.emit 'user-send', login, 'gerrit', text, msg
+      # no mail passed: matrix DMs on gerrit notifs not supported yet
+      robot.emit 'user-send', { login: login }, 'gerrit', text, msg
 
     # Send notification to owner of patch
     if details.author != details.change_owner
