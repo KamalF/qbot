@@ -61,3 +61,11 @@ export QBOT_MATRIX_DEV_ROOM=
 # at https://<MATRIX_SERVER_NAME> (see /.well-known/matrix/client)
 
 export MATRIX_HOMESERVER_URL=
+
+# Gerrit REST API access, used to resolve account logins and emails for
+# gerrit notifications. The password is the HTTP password of the bot
+# gerrit account (Settings > HTTP credentials)
+
+export GERRIT_URL=
+export GERRIT_HTTP_USER=
+export GERRIT_HTTP_PASSWORD=

@@ -117,19 +117,18 @@ module.exports = (robot) ->
       as_user: true
     }
 
-    notify_user_gerrit = (login) ->
+    notify_user_gerrit = (user) ->
       if details.emitter
         text = details.author.replace /<.*>/, "@#{details.emitter}"
       else
         text = details.author
 
-      # no mail passed: matrix DMs on gerrit notifs not supported yet
-      robot.emit 'user-send', { login: login }, 'gerrit', text, msg
+      robot.emit 'user-send', user, 'gerrit', text, msg
 
     # Send notification to owner of patch
     if details.author != details.change_owner
-      notify_user_gerrit details.nickname
-    if details.reviewers?
-        for user in details.reviewers
-            if user != details.emitter && user != details.nickname
+      notify_user_gerrit { login: details.nickname, mail: details.owner_mail }
+    if details.reviewer_users?
+        for user in details.reviewer_users
+            if user.login != details.emitter && user.login != details.nickname
                 notify_user_gerrit user
