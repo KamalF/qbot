@@ -10,6 +10,8 @@
 
 'use strict'
 
+fs = require('fs')
+
 matrix = require('./matrix-client.coffee')
 
 # Match a user to the key holding the list of subscriptions to
@@ -63,34 +65,26 @@ on_action = (cmd, nickname, type, robot, res) ->
     nosubs.push type
     res.send "You are no longer subscribed to #{type} notifications."
   else
-    ext_cmd = cmd.split(" ")
-    # Commands to link or unlink Redmine projects and Slack channels
-    # XXX: A Redmine project needs a hook for this to work
-    if ext_cmd[0] == 'link_project' or ext_cmd[0] == 'unlink_project'
-      if ext_cmd.length != 3
-        res.send "2 arguments required redmine_project_id channel " +
-                 "(slack channel or matrix room id/alias)"
-        return
-      slack_chans = robot.brain.get(ext_cmd[1])
-      if not slack_chans?
-          slack_chans = []
-      if ext_cmd[0] == 'link_project'
-        if ext_cmd[2] in slack_chans
-          res.send "Link between #{ext_cmd[1]} and #{ext_cmd[2]} is already done"
-          return
-        slack_chans.push ext_cmd[2]
-      else
-        index = slack_chans.indexOf(ext_cmd[2])
-        if index == -1
-          res.send "No link between #{ext_cmd[1]} and #{ext_cmd[2]}"
-          return
-        slack_chans.splice(index, 1)
-      robot.brain.set(ext_cmd[1], slack_chans)
-    else
-      res.send "Unknown #{cmd} command."
-      return
+    res.send "Unknown #{cmd} command."
+    return
 
   robot.brain.set(key, nosubs)
+
+
+# Get the channels linked to a Redmine project from the JSON file
+# pointed to by QBOT_PROJECT_LINKS:
+#   { "<redmine_project_id>": ["#slack-chan", "#room:matrix.example.com"] }
+# The file is re-read on each notification so it can be modified
+# without restarting the bot.
+get_project_channels = (robot, project) ->
+  path = process.env.QBOT_PROJECT_LINKS
+  return [] if not path? or path.length == 0
+  try
+    links = JSON.parse fs.readFileSync(path, 'utf8')
+  catch err
+    robot.logger.error "cannot read project links file #{path}: #{err}"
+    return []
+  links[project] ? []
 
 
 module.exports = (robot) ->
@@ -125,21 +119,20 @@ module.exports = (robot) ->
         matrix_client.send matrix_dev_room, plain, html
 
   robot.on 'channel-send', (project, text, msg) ->
-    chans = robot.brain.get(project)
-    if chans?
-      for idx,linked_chan of chans
-        if matrix.is_matrix_room linked_chan
-          continue if not matrix_client.enabled()
-          if is_prod_ready()
-            [plain, html] = matrix.format_notif text, msg
-            matrix_client.send linked_chan, plain, html
-          else if matrix_dev_room
-            [plain, html] = matrix.format_notif(
-              "notification to #{linked_chan}: #{text}", msg)
-            matrix_client.send matrix_dev_room, plain, html
-        else
-          [chan, chan_text] = fix_channel linked_chan, text
-          robot.adapter.client.web.chat.postMessage(chan, chan_text, msg)
+    chans = get_project_channels robot, project
+    for idx,linked_chan of chans
+      if matrix.is_matrix_room linked_chan
+        continue if not matrix_client.enabled()
+        if is_prod_ready()
+          [plain, html] = matrix.format_notif text, msg
+          matrix_client.send linked_chan, plain, html
+        else if matrix_dev_room
+          [plain, html] = matrix.format_notif(
+            "notification to #{linked_chan}: #{text}", msg)
+          matrix_client.send matrix_dev_room, plain, html
+      else
+        [chan, chan_text] = fix_channel linked_chan, text
+        robot.adapter.client.web.chat.postMessage(chan, chan_text, msg)
 
   # Redmine status
   robot.respond /redmine$/, (res) ->

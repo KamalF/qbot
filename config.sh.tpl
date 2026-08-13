@@ -23,6 +23,12 @@ export HUBOT_LOG_LEVEL=
 
 export QBOT_PROD_READY=
 
+# Path to a JSON file linking Redmine projects to notification channels
+# (slack channels and/or matrix rooms), see project-links.json.tpl.
+# The file is re-read on each notification, no restart needed.
+
+export QBOT_PROJECT_LINKS=
+
 # Matrix support (optional): notifications are mirrored on a matrix
 # homeserver when both variables below are set.
 # Rooms must NOT be end-to-end encrypted (the bot does not support E2EE).
