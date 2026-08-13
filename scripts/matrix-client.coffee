@@ -89,7 +89,9 @@ class MatrixClient
       catch e
         data = {}
       if res.statusCode >= 300
-        @robot.logger.error "matrix: #{method} #{path}: HTTP #{res.statusCode}: #{resp_body}"
+        # 404s are part of normal operation (missing account data)
+        level = if res.statusCode == 404 then 'debug' else 'error'
+        @robot.logger[level] "matrix: #{method} #{path}: HTTP #{res.statusCode}: #{resp_body}"
         return cb? new Error("matrix HTTP #{res.statusCode}"), data
       cb? null, data
 
@@ -129,10 +131,30 @@ class MatrixClient
       msg.formatted_body = html
     @api 'PUT', "/rooms/#{encodeURIComponent(room_id)}/send/m.room.message/#{txn}", msg, null
 
+  # The bot's own user id, resolved lazily and kept in memory
+  whoami: (cb) ->
+    return cb @user_id if @user_id?
+    @api 'GET', '/account/whoami', null, (err, data) =>
+      return cb null if err
+      @user_id = data.user_id
+      cb @user_id
+
+  # Get the user id -> [room ids] map of direct rooms from the bot
+  # account's m.direct account data. Stored on the homeserver, it is
+  # shared by all the bot instances, so DM rooms are never duplicated.
+  # Calls back with the map ({} when not set yet), or null on error.
+  get_direct_rooms: (cb) ->
+    @whoami (user_id) =>
+      return cb null if not user_id
+      path = "/user/#{encodeURIComponent(user_id)}/account_data/m.direct"
+      @api 'GET', path, null, (err, data) ->
+        if err
+          return cb (if data?.errcode == 'M_NOT_FOUND' then {} else null)
+        cb data
+
   # Send a DM to the matrix user matching an email address
   # (@<email local part>:<server_name>), creating an unencrypted
-  # direct room on first use. The room is cached in the brain and
-  # reused for all subsequent DMs to this user.
+  # direct room on first use and registering it in m.direct.
   sendDM: (mail, plain, html) ->
     return if not @enabled()
     if not mail? or mail.indexOf('@') <= 0
@@ -140,17 +162,22 @@ class MatrixClient
       return
     localpart = mail.split('@')[0].toLowerCase()
     user_id = "@#{localpart}:#{@server_name}"
-    key = "matrix.dm.#{user_id}"
-    room_id = @robot.brain.get key
-    if room_id?
-      return @sendToRoomId room_id, plain, html
-    @api 'POST', '/createRoom', {
-      is_direct: true
-      preset: 'trusted_private_chat'
-      invite: [user_id]
-    }, (err, data) =>
-      return if err
-      @robot.brain.set key, data.room_id
-      @sendToRoomId data.room_id, plain, html
+    @get_direct_rooms (direct) =>
+      # do not create a room blindly on errors, it could duplicate
+      # an existing DM room
+      return if not direct?
+      rooms = direct[user_id]
+      if rooms? and rooms.length > 0
+        return @sendToRoomId rooms[0], plain, html
+      @api 'POST', '/createRoom', {
+        is_direct: true
+        preset: 'trusted_private_chat'
+        invite: [user_id]
+      }, (err, data) =>
+        return if err
+        direct[user_id] = [data.room_id]
+        path = "/user/#{encodeURIComponent(@user_id)}/account_data/m.direct"
+        @api 'PUT', path, direct, null
+        @sendToRoomId data.room_id, plain, html
 
 module.exports = { MatrixClient, format_notif, is_matrix_room }
