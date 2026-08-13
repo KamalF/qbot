@@ -71,18 +71,22 @@ on_action = (cmd, nickname, type, robot, res) ->
   robot.brain.set(key, nosubs)
 
 
-# Get the channels linked to a Redmine project from the JSON file
-# pointed to by QBOT_PROJECT_LINKS:
+# Get the channels linked to a Redmine project from the project links
+# JSON file (./project-links.json, or QBOT_PROJECT_LINKS if set):
 #   { "<redmine_project_id>": ["#slack-chan", "#room:matrix.example.com"] }
 # The file is re-read on each notification so it can be modified
 # without restarting the bot.
 get_project_channels = (robot, project) ->
   path = process.env.QBOT_PROJECT_LINKS
-  return [] if not path? or path.length == 0
+  if not path? or path.length == 0
+    path = 'project-links.json'
   try
     links = JSON.parse fs.readFileSync(path, 'utf8')
   catch err
-    robot.logger.error "cannot read project links file #{path}: #{err}"
+    if err.code == 'ENOENT'
+      robot.logger.debug "no project links file (#{path})"
+    else
+      robot.logger.error "cannot read project links file #{path}: #{err}"
     return []
   links[project] ? []
 

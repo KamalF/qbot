@@ -23,9 +23,10 @@ export HUBOT_LOG_LEVEL=
 
 export QBOT_PROD_READY=
 
-# Path to a JSON file linking Redmine projects to notification channels
+# Path to the JSON file linking Redmine projects to notification channels
 # (slack channels and/or matrix rooms), see project-links.json.tpl.
-# The file is re-read on each notification, no restart needed.
+# Defaults to ./project-links.json. The file is re-read on each
+# notification, no restart needed.
 
 export QBOT_PROJECT_LINKS=
 
