@@ -44,8 +44,15 @@ export MATRIX_SERVER_NAME=
 
 export MATRIX_ACCESS_TOKEN=
 
-# Room receiving all matrix notifications when QBOT_PROD_READY is not 1.
-# The server name is appended if missing: '#qbot-dev' means
+# Same as QBOT_PROD_READY, for matrix: if set to 1, matrix DMs are sent
+# to the notified people and linked matrix rooms are used. Otherwise all
+# matrix notifications go to QBOT_MATRIX_DEV_ROOM. Independent from
+# QBOT_PROD_READY so matrix can be tested while slack runs in production.
+
+export QBOT_MATRIX_PROD_READY=
+
+# Room receiving all matrix notifications when QBOT_MATRIX_PROD_READY is
+# not 1. The server name is appended if missing: '#qbot-dev' means
 # '#qbot-dev:<MATRIX_SERVER_NAME>' (quote the value, it starts with #)
 
 export QBOT_MATRIX_DEV_ROOM=

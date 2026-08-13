@@ -23,6 +23,12 @@ is_prod_ready = ->
   env = process.env.QBOT_PROD_READY
   return env? and env == '1'
 
+# Matrix has its own production switch so it can be tested while
+# slack notifications keep running in production
+is_matrix_prod_ready = ->
+  env = process.env.QBOT_MATRIX_PROD_READY
+  return env? and env == '1'
+
 
 fix_channel = (channel, text) ->
   if is_prod_ready()
@@ -101,6 +107,7 @@ module.exports = (robot) ->
   # notification source provides it (needed for matrix DMs).
   robot.on 'user-send', (user, type, text, msg) ->
     nickname = user.login
+    orig_text = text
     [chan, text] = fix_channel "@#{nickname}", text
 
     # Check the user has signed up for this type of notifications
@@ -116,10 +123,12 @@ module.exports = (robot) ->
 
     # mirror the notification on matrix
     if matrix_client.enabled()
-      [plain, html] = matrix.format_notif text, msg
-      if is_prod_ready()
+      if is_matrix_prod_ready()
+        [plain, html] = matrix.format_notif orig_text, msg
         matrix_client.sendDM user.mail, plain, html
       else if matrix_dev_room
+        [plain, html] = matrix.format_notif(
+          "DM to @#{nickname}: #{orig_text}", msg)
         matrix_client.send matrix_dev_room, plain, html
 
   robot.on 'channel-send', (project, text, msg) ->
@@ -127,7 +136,7 @@ module.exports = (robot) ->
     for idx,linked_chan of chans
       if matrix.is_matrix_room linked_chan
         continue if not matrix_client.enabled()
-        if is_prod_ready()
+        if is_matrix_prod_ready()
           [plain, html] = matrix.format_notif text, msg
           matrix_client.send linked_chan, plain, html
         else if matrix_dev_room
