@@ -118,10 +118,12 @@ module.exports = (robot) ->
     }
 
     notify_user_gerrit = (user) ->
+      # the hook wraps names in literal quotes: '"Name <email>"'
+      author = details.author.replace /^"|"$/g, ''
       if details.emitter
-        text = details.author.replace /<.*>/, "@#{details.emitter}"
+        text = author.replace /<.*>/, "@#{details.emitter}"
       else
-        text = details.author
+        text = author
 
       robot.emit 'user-send', user, 'gerrit', text, msg
 
