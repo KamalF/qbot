@@ -44,9 +44,16 @@ export MATRIX_SERVER_NAME=
 
 export MATRIX_ACCESS_TOKEN=
 
+# Chat adapter hubot connects to: 'slack' (the default) or 'matrix'.
+# With the matrix adapter the bot answers commands in the matrix rooms
+# it is invited to, and slack is not used at all: use it once slack
+# access is gone.
+
+export QBOT_ADAPTER=
+
 # If set to 1, notifications are no longer sent on slack (the bot stays
-# connected to slack to answer commands). Useful once matrix has taken
-# over.
+# connected to slack to answer commands). Useful during the migration
+# to matrix, while slack is still available.
 
 export QBOT_SLACK_DISABLED=
 

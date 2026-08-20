@@ -116,16 +116,23 @@ module.exports = (robot) ->
     orig_text = text
     [chan, text] = fix_channel "@#{nickname}", text
 
-    # Check the user has signed up for this type of notifications
-    nosubs = robot.brain.get(get_user_nosubs_key(nickname))
-    if nosubs? and type in nosubs
+    # Check the user has signed up for this type of notifications.
+    # Subscriptions are keyed by the name the user has on the network
+    # the command came from: login on slack, email local part on matrix.
+    names = [nickname]
+    if user.mail? and user.mail.indexOf('@') > 0
+      names.push user.mail.split('@')[0].toLowerCase()
+    unsubscribed = names.some (name) ->
+      nosubs = robot.brain.get(get_user_nosubs_key(name))
+      nosubs? and type in nosubs
+    if unsubscribed
       if is_prod_ready()
         robot.logger.debug "unsubscribed #{type} notif for @#{nickname}"
         return
       text = "unsubscribed #{type} " + text
 
     # send msg to user
-    if not is_slack_disabled()
+    if not is_slack_disabled() and robot.adapter.client?.web?
       robot.adapter.client.web.chat.postMessage(chan, text, msg)
 
     # mirror the notification on matrix
@@ -150,7 +157,7 @@ module.exports = (robot) ->
           [plain, html] = matrix.format_notif(
             "notification to #{linked_chan}: #{text}", msg)
           matrix_client.send matrix_dev_room, plain, html
-      else if not is_slack_disabled()
+      else if not is_slack_disabled() and robot.adapter.client?.web?
         [chan, chan_text] = fix_channel linked_chan, text
         robot.adapter.client.web.chat.postMessage(chan, chan_text, msg)
 

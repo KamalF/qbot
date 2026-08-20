@@ -1,0 +1,7 @@
+{
+  "name": "hubot-matrix",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Matrix adapter for qbot, using the plain client-server API",
+  "main": "index.js"
+}

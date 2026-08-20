@@ -14,4 +14,4 @@ $ $EDITOR config.sh
 fi
 
 . $DIR/config.sh
-$DIR/bin/hubot -a slack
+$DIR/bin/hubot -a "${QBOT_ADAPTER:-slack}"
