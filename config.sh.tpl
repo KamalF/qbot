@@ -44,6 +44,12 @@ export MATRIX_SERVER_NAME=
 
 export MATRIX_ACCESS_TOKEN=
 
+# If set to 1, notifications are no longer sent on slack (the bot stays
+# connected to slack to answer commands). Useful once matrix has taken
+# over.
+
+export QBOT_SLACK_DISABLED=
+
 # Same as QBOT_PROD_READY, for matrix: if set to 1, matrix DMs are sent
 # to the notified people and linked matrix rooms are used. Otherwise all
 # matrix notifications go to QBOT_MATRIX_DEV_ROOM. Independent from

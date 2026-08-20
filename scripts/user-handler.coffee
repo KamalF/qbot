@@ -29,6 +29,12 @@ is_matrix_prod_ready = ->
   env = process.env.QBOT_MATRIX_PROD_READY
   return env? and env == '1'
 
+# Slack notifications can be turned off (once matrix has taken over);
+# the bot stays connected to slack to answer commands
+is_slack_disabled = ->
+  env = process.env.QBOT_SLACK_DISABLED
+  return env? and env == '1'
+
 
 fix_channel = (channel, text) ->
   if is_prod_ready()
@@ -119,7 +125,8 @@ module.exports = (robot) ->
       text = "unsubscribed #{type} " + text
 
     # send msg to user
-    robot.adapter.client.web.chat.postMessage(chan, text, msg)
+    if not is_slack_disabled()
+      robot.adapter.client.web.chat.postMessage(chan, text, msg)
 
     # mirror the notification on matrix
     if matrix_client.enabled()
@@ -143,7 +150,7 @@ module.exports = (robot) ->
           [plain, html] = matrix.format_notif(
             "notification to #{linked_chan}: #{text}", msg)
           matrix_client.send matrix_dev_room, plain, html
-      else
+      else if not is_slack_disabled()
         [chan, chan_text] = fix_channel linked_chan, text
         robot.adapter.client.web.chat.postMessage(chan, chan_text, msg)
 
