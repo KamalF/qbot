@@ -27,6 +27,40 @@ slack_to_html = (str) ->
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/\n/g, '<br/>')
 
+# Slack attachment colors: the named ones use the slack palette,
+# the others are already hex colors
+SLACK_COLORS = {
+  good: '#2eb886'
+  warning: '#daa038'
+  danger: '#e01e5a'
+}
+
+attachment_color = (color) ->
+  return null if not color?
+  hex = SLACK_COLORS[color] ? color
+  return null if not /^#[0-9a-fA-F]{6}$/.test hex
+  return hex
+
+# Slack folds long attachment texts behind a "Show more" button.
+# Matrix HTML has no equivalent, so the text is cut instead and the
+# reader is sent to the ticket for the rest.
+MAX_TEXT_LINES = 8
+MAX_TEXT_CHARS = 600
+
+# Return [text, cut], cut telling whether something was dropped
+truncate_text = (str) ->
+  cut = false
+  lines = str.split '\n'
+  if lines.length > MAX_TEXT_LINES
+    lines = lines[0...MAX_TEXT_LINES]
+    cut = true
+  out = lines.join '\n'
+  if out.length > MAX_TEXT_CHARS
+    # cut on a word boundary, the trailing word is likely partial
+    out = out.substring(0, MAX_TEXT_CHARS).replace(/\s+\S*$/, '')
+    cut = true
+  return [out, cut]
+
 # Build [plain_body, html_body] for matrix from the slack-style
 # text + attachments message
 format_notif = (text, msg) ->
@@ -36,18 +70,31 @@ format_notif = (text, msg) ->
   attachments = msg?.attachments ? []
   for att in attachments
     quote = ''
+    # slack draws a colored bar on the side of the attachment; matrix
+    # HTML has no styling, the title carries the color instead
+    color = attachment_color att.color
     if att.title?
       plain += "\n#{att.title}"
       title = escape_html(att.title)
+      title = "<font data-mx-color=\"#{color}\">#{title}</font>" if color?
       if att.title_link?
         plain += " (#{att.title_link})"
         quote += "<b><a href=\"#{escape_html(att.title_link)}\">#{title}</a></b>"
       else
         quote += "<b>#{title}</b>"
     if att.text? and att.text.length > 0
-      plain += "\n#{att.text}"
+      [body, cut] = truncate_text att.text
+      plain += "\n#{body}"
       quote += '<br/>' if quote.length > 0
-      quote += slack_to_html(att.text)
+      quote += slack_to_html(body)
+      if cut
+        if att.title_link?
+          plain += "\n… (see the ticket)"
+          quote += "<br/><a href=\"#{escape_html(att.title_link)}\">" +
+                   '&hellip; (see the ticket)</a>'
+        else
+          plain += "\n…"
+          quote += '<br/>&hellip;'
     fields = att.fields ? []
     for f in fields
       plain += "\n#{f.title}: #{f.value}"
