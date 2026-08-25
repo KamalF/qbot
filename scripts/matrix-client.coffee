@@ -35,11 +35,33 @@ SLACK_COLORS = {
   danger: '#e01e5a'
 }
 
-attachment_color = (color) ->
+# Colored circles, with the color they are drawn with, to stand for the
+# colored bar slack puts on the side of an attachment
+COLOR_EMOJIS = [
+  ['\u{1f534}', 0xdd, 0x2e, 0x44]
+  ['\u{1f7e0}', 0xf4, 0x90, 0x0c]
+  ['\u{1f7e1}', 0xfd, 0xcb, 0x58]
+  ['\u{1f7e2}', 0x78, 0xb1, 0x59]
+  ['\u{1f535}', 0x55, 0xac, 0xee]
+  ['\u{1f7e3}', 0xaa, 0x8e, 0xd6]
+  ['\u26ab',    0x31, 0x37, 0x3d]
+]
+
+# Pick the circle closest to a slack attachment color, null when the
+# color is missing or not a color we can read
+attachment_emoji = (color) ->
   return null if not color?
   hex = SLACK_COLORS[color] ? color
   return null if not /^#[0-9a-fA-F]{6}$/.test hex
-  return hex
+  r = parseInt hex.substring(1, 3), 16
+  g = parseInt hex.substring(3, 5), 16
+  b = parseInt hex.substring(5, 7), 16
+  best = null
+  for [emoji, er, eg, eb] in COLOR_EMOJIS
+    dist = (r - er) ** 2 + (g - eg) ** 2 + (b - eb) ** 2
+    if not best? or dist < best[1]
+      best = [emoji, dist]
+  return best[0]
 
 # Slack folds long attachment texts behind a "Show more" button.
 # Matrix HTML has no equivalent, so the text is cut instead and the
@@ -71,17 +93,19 @@ format_notif = (text, msg) ->
   for att in attachments
     quote = ''
     # slack draws a colored bar on the side of the attachment; matrix
-    # HTML has no styling, the title carries the color instead
-    color = attachment_color att.color
+    # HTML has no styling, and clients paint links with their own
+    # color, so a colored circle leads the title instead
+    emoji = attachment_emoji att.color
+    prefix = if emoji? then "#{emoji} " else ''
     if att.title?
-      plain += "\n#{att.title}"
+      plain += "\n#{prefix}#{att.title}"
       title = escape_html(att.title)
-      title = "<font data-mx-color=\"#{color}\">#{title}</font>" if color?
       if att.title_link?
         plain += " (#{att.title_link})"
-        quote += "<b><a href=\"#{escape_html(att.title_link)}\">#{title}</a></b>"
+        quote += "#{prefix}<b><a href=\"#{escape_html(att.title_link)}\">" +
+                 "#{title}</a></b>"
       else
-        quote += "<b>#{title}</b>"
+        quote += "#{prefix}<b>#{title}</b>"
     if att.text? and att.text.length > 0
       [body, cut] = truncate_text att.text
       plain += "\n#{body}"
