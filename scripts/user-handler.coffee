@@ -12,7 +12,7 @@
 
 fs = require('fs')
 
-matrix = require('./matrix-client.coffee')
+matrix = require('hubot-matrix/matrix-client.coffee')
 
 # Match a user to the key holding the list of subscriptions to
 # disable

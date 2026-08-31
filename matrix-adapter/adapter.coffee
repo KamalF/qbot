@@ -3,13 +3,13 @@
 # with a /sync long-polling loop, and room invites are accepted
 # automatically so users can DM commands to the bot.
 #
-# Uses the same MATRIX_* configuration as scripts/matrix-client.coffee.
+# Uses the same MATRIX_* configuration as matrix-client.coffee.
 
 'use strict'
 
 {Adapter, TextMessage} = require 'hubot'
 
-matrix = require '../scripts/matrix-client.coffee'
+matrix = require './matrix-client.coffee'
 
 # limit the initial sync payload: old events are skipped anyway
 INITIAL_FILTER = JSON.stringify {room: {timeline: {limit: 1}}}
