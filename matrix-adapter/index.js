@@ -1,4 +1,3 @@
-// The adapter is loaded by hubot before any .coffee script, so the
-// coffee-script compiler must be registered by hand.
-require('coffee-script/register');
+// hubot runs its own bin through the coffee interpreter, which registers the
+// .coffee require extension for us.
 module.exports = require('./adapter.coffee');

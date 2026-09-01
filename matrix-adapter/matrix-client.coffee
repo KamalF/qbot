@@ -58,7 +58,10 @@ attachment_emoji = (color) ->
   b = parseInt hex.substring(5, 7), 16
   best = null
   for [emoji, er, eg, eb] in COLOR_EMOJIS
-    dist = (r - er) ** 2 + (g - eg) ** 2 + (b - eb) ** 2
+    dr = r - er
+    dg = g - eg
+    db = b - eb
+    dist = dr * dr + dg * dg + db * db
     if not best? or dist < best[1]
       best = [emoji, dist]
   return best[0]
